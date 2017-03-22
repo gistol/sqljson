@@ -1656,13 +1656,10 @@ select jsonb_path_query('[null, 1, "abc", "abd", "aBdC", "abdacb", "adc\nabc", "
 
 select jsonb_path_query('null', '$.datetime()');
 ERROR:  invalid argument for SQL/JSON datetime function
-DETAIL:  jsonpath item method .datetime() is applied to not a string
+DETAIL:  jsonpath item method .datetime() can only be applied to a string or number
 select jsonb_path_query('true', '$.datetime()');
 ERROR:  invalid argument for SQL/JSON datetime function
-DETAIL:  jsonpath item method .datetime() is applied to not a string
-select jsonb_path_query('1', '$.datetime()');
-ERROR:  invalid argument for SQL/JSON datetime function
-DETAIL:  jsonpath item method .datetime() is applied to not a string
+DETAIL:  jsonpath item method .datetime() can only be applied to a string or number
 select jsonb_path_query('[]', '$.datetime()');
  jsonb_path_query 
 ------------------
@@ -1670,10 +1667,10 @@ select jsonb_path_query('[]', '$.datetime()');
 
 select jsonb_path_query('[]', 'strict $.datetime()');
 ERROR:  invalid argument for SQL/JSON datetime function
-DETAIL:  jsonpath item method .datetime() is applied to not a string
+DETAIL:  jsonpath item method .datetime() can only be applied to a string or number
 select jsonb_path_query('{}', '$.datetime()');
 ERROR:  invalid argument for SQL/JSON datetime function
-DETAIL:  jsonpath item method .datetime() is applied to not a string
+DETAIL:  jsonpath item method .datetime() can only be applied to a string or number
 select jsonb_path_query('""', '$.datetime()');
 ERROR:  invalid argument for SQL/JSON datetime function
 DETAIL:  unrecognized datetime format
@@ -1715,6 +1712,25 @@ DETAIL:  timezone argument of jsonpath item method .datetime() is out of integer
 select jsonb_path_query('"aaaa"', '$.datetime("HH24")');
 ERROR:  invalid value "aa" for "HH24"
 DETAIL:  Value must be an integer.
+-- Standard extension: UNIX epoch to timestamptz
+select jsonb_path_query('0', '$.datetime()');
+      jsonb_path_query       
+-----------------------------
+ "1970-01-01T00:00:00+00:00"
+(1 row)
+
+select jsonb_path_query('0', '$.datetime().type()');
+      jsonb_path_query      
+----------------------------
+ "timestamp with time zone"
+(1 row)
+
+select jsonb_path_query('1490216035.5', '$.datetime()');
+       jsonb_path_query        
+-------------------------------
+ "2017-03-22T20:53:55.5+00:00"
+(1 row)
+
 select jsonb '"10-03-2017"' @? '$.datetime("dd-mm-yyyy")';
  ?column? 
 ----------
