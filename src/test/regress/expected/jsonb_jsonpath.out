@@ -180,6 +180,36 @@ select jsonb '[1]' @? 'strict $[1.2]';
  
 (1 row)
 
+select jsonb_path_query('[1]', 'strict $[1.2]');
+ERROR:  invalid SQL/JSON subscript
+DETAIL:  jsonpath array subscript is out of bounds
+select jsonb_path_query('{}', 'strict $[0.3]');
+ERROR:  invalid SQL/JSON subscript
+DETAIL:  object subscript must be a string or number
+select jsonb '{}' @? 'lax $[0.3]';
+ ?column? 
+----------
+ t
+(1 row)
+
+select jsonb_path_query('{}', 'strict $[1.2]');
+ERROR:  invalid SQL/JSON subscript
+DETAIL:  object subscript must be a string or number
+select jsonb '{}' @? 'lax $[1.2]';
+ ?column? 
+----------
+ f
+(1 row)
+
+select jsonb_path_query('{}', 'strict $[-2 to 3]');
+ERROR:  SQL/JSON array not found
+DETAIL:  jsonpath array accessor can only be applied to an array
+select jsonb '{}' @? 'lax $[-2 to 3]';
+ ?column? 
+----------
+ t
+(1 row)
+
 select jsonb '{"a": [1,2,3], "b": [3,4,5]}' @? '$ ? (@.a[*] >  @.b[*])';
  ?column? 
 ----------
@@ -298,7 +328,7 @@ select jsonb_path_query('{}', 'strict $.a', silent => true);
 
 select jsonb_path_query('1', 'strict $[1]');
 ERROR:  SQL/JSON array not found
-DETAIL:  jsonpath array accessor can only be applied to an array
+DETAIL:  jsonpath array accessor can only be applied to an array or object
 select jsonb_path_query('1', 'strict $[*]');
 ERROR:  SQL/JSON array not found
 DETAIL:  jsonpath wildcard array accessor can only be applied to an array
@@ -416,6 +446,12 @@ select jsonb_path_query('1', 'lax $[*]');
  1
 (1 row)
 
+select jsonb_path_query('{}', 'lax $[0]');
+ jsonb_path_query 
+------------------
+ {}
+(1 row)
+
 select jsonb_path_query('[1]', 'lax $[0]');
  jsonb_path_query 
 ------------------
@@ -466,6 +502,12 @@ select jsonb_path_query('[1]', '$[last]');
  jsonb_path_query 
 ------------------
  1
+(1 row)
+
+select jsonb_path_query('{}', '$[last]');
+ jsonb_path_query 
+------------------
+ {}
 (1 row)
 
 select jsonb_path_query('[1,2,3]', '$[last]');
@@ -2537,4 +2579,63 @@ select jsonb_path_query('[1, 2, 3]', '{a: 2 + 3, "b": {x: $, y: $[1] > 2, z: "fo
 ---------------------------------------------------------
  {"a": 5, "b": {"x": [1, 2, 3], "y": false, "z": "foo"}}
 (1 row)
+
+-- extension: object subscripting
+select jsonb '{"a": 1}' @? '$["a"]';
+ ?column? 
+----------
+ t
+(1 row)
+
+select jsonb '{"a": 1}' @? '$["b"]';
+ ?column? 
+----------
+ f
+(1 row)
+
+select jsonb '{"a": 1}' @? 'strict $["b"]';
+ ?column? 
+----------
+ 
+(1 row)
+
+select jsonb '{"a": 1}' @? '$["b", "a"]';
+ ?column? 
+----------
+ t
+(1 row)
+
+select jsonb_path_query('{"a": 1}', '$["a"]');
+ jsonb_path_query 
+------------------
+ 1
+(1 row)
+
+select jsonb_path_query('{"a": 1}', 'strict $["b"]');
+ERROR:  SQL/JSON member not found
+DETAIL:  JSON object does not contain the specified key
+select jsonb_path_query('{"a": 1}', 'lax $["b"]');
+ jsonb_path_query 
+------------------
+(0 rows)
+
+select jsonb_path_query('{"a": 1, "b": 2}', 'lax $["b", "c", "b", "a", 0 to 3]');
+ jsonb_path_query 
+------------------
+ 2
+ 2
+ 1
+ {"a": 1, "b": 2}
+(4 rows)
+
+select jsonb_path_query('null', '{"a": 1}["a"]');
+ jsonb_path_query 
+------------------
+ 1
+(1 row)
+
+select jsonb_path_query('null', '{"a": 1}["b"]');
+ jsonb_path_query 
+------------------
+(0 rows)
 

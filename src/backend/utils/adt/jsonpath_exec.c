@@ -1026,7 +1026,144 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 			break;
 
 		case jpiIndexArray:
-			if (JsonbType(jb) == jbvArray || jspAutoWrap(cxt))
+			if (JsonbType(jb) == jbvObject)
+			{
+				int			innermostArraySize = cxt->innermostArraySize;
+				int			i;
+				JsonItem	bin;
+
+				jb = wrapJsonObjectOrArray(jb, &bin, cxt->isJsonb);
+
+				cxt->innermostArraySize = 1;
+
+				for (i = 0; i < jsp->content.array.nelems; i++)
+				{
+					JsonPathItem from;
+					JsonPathItem to;
+					JsonItem   *key;
+					JsonValueList keys = { 0 };
+					bool		range = jspGetArraySubscript(jsp, &from, &to, i);
+
+					if (range)
+					{
+						int		index_from;
+						int		index_to;
+
+						if (!jspAutoWrap(cxt))
+							RETURN_ERROR(ereport(ERROR,
+												 (errcode(ERRCODE_JSON_ARRAY_NOT_FOUND),
+												  errmsg(ERRMSG_JSON_ARRAY_NOT_FOUND),
+												  errdetail("jsonpath array accessor can "
+															"only be applied to an array"))));
+
+						res = getArrayIndex(cxt, &from, jb, &index_from);
+						if (jperIsError(res))
+							return res;
+
+						res = getArrayIndex(cxt, &to, jb, &index_to);
+						if (jperIsError(res))
+							return res;
+
+						res = jperNotFound;
+
+						if (index_from <= 0 && index_to >= 0)
+						{
+							res = executeNextItem(cxt, jsp, NULL, jb, found,
+												  true);
+							if (jperIsError(res))
+								return res;
+						}
+
+						if (res == jperOk && !found)
+							break;
+
+						continue;
+					}
+
+					res = executeItem(cxt, &from, jb, &keys);
+
+					if (jperIsError(res))
+						return res;
+
+					if (JsonValueListLength(&keys) != 1)
+						RETURN_ERROR(ereport(ERROR,
+											 (errcode(ERRCODE_INVALID_JSON_SUBSCRIPT),
+											  errmsg(ERRMSG_INVALID_JSON_SUBSCRIPT),
+											  errdetail("object subscript must be "
+														"a singleton value"))));
+
+					key = JsonValueListHead(&keys);
+					/* key = extractScalar(key, &tmp); XXX */
+
+					res = jperNotFound;
+
+					if (JsonItemIsNumeric(key) && jspAutoWrap(cxt))
+					{
+						Datum		index_datum =
+							DirectFunctionCall2(numeric_trunc, JsonItemNumericDatum(key), Int32GetDatum(0));
+						bool		have_error = false;
+						int			index =
+							numeric_int4_opt_error(DatumGetNumeric(index_datum),
+												   &have_error);
+
+						if (have_error)
+							RETURN_ERROR(ereport(ERROR,
+											 (errcode(ERRCODE_INVALID_JSON_SUBSCRIPT),
+											  errmsg(ERRMSG_INVALID_JSON_SUBSCRIPT),
+											  errdetail("jsonpath array subscript "
+														"is out integer range"))));
+
+						if (!index)
+						{
+							res = executeNextItem(cxt, jsp, NULL, jb, found,
+												  true);
+							if (jperIsError(res))
+								return res;
+						}
+						else if (!jspIgnoreStructuralErrors(cxt))
+							RETURN_ERROR(ereport(ERROR,
+											 (errcode(ERRCODE_INVALID_JSON_SUBSCRIPT),
+											  errmsg(ERRMSG_INVALID_JSON_SUBSCRIPT),
+											  errdetail("jsonpath array subscript "
+														"is out of bounds"))));
+					}
+					else if (JsonItemIsString(key))
+					{
+						JsonItem	valbuf;
+						JsonItem   *val;
+
+						val = getJsonObjectKey(jb, JsonItemString(key).val,
+											   JsonItemString(key).len,
+											   cxt->isJsonb, &valbuf);
+
+						if (val)
+						{
+							res = executeNextItem(cxt, jsp, NULL, val, found,
+												  true);
+							if (jperIsError(res))
+								return res;
+						}
+						else if (!jspIgnoreStructuralErrors(cxt))
+							RETURN_ERROR(ereport(ERROR,
+												 (errcode(ERRCODE_JSON_MEMBER_NOT_FOUND),
+												  errmsg(ERRMSG_JSON_MEMBER_NOT_FOUND),
+												  errdetail("JSON object does not "
+															"contain the specified key"))));
+					}
+					else if (!jspIgnoreStructuralErrors(cxt))
+						RETURN_ERROR(ereport(ERROR,
+											 (errcode(ERRCODE_INVALID_JSON_SUBSCRIPT),
+											  errmsg(ERRMSG_INVALID_JSON_SUBSCRIPT),
+											  errdetail("object subscript must be "
+														"a string or number"))));
+
+					if (res == jperOk && !found)
+						break;
+				}
+
+				cxt->innermostArraySize = innermostArraySize;
+			}
+			else if (JsonbType(jb) == jbvArray || jspAutoWrap(cxt))
 			{
 				int			innermostArraySize = cxt->innermostArraySize;
 				int			i;
@@ -1134,7 +1271,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 									 (errcode(ERRCODE_JSON_ARRAY_NOT_FOUND),
 									  errmsg(ERRMSG_JSON_ARRAY_NOT_FOUND),
 									  errdetail("jsonpath array accessor can "
-												"only be applied to an array"))));
+												"only be applied to an "
+												"array or object"))));
 			}
 			break;
 
