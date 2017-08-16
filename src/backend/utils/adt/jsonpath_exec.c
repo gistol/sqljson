@@ -78,6 +78,11 @@
 #include "utils/timestamp.h"
 #include "utils/varlena.h"
 
+#ifdef JSONPATH_JSON_C
+#define JSONXOID JSONOID
+#else
+#define JSONXOID JSONBOID
+#endif
 
 /* Standard error message for SQL/JSON errors */
 #define ERRMSG_JSON_ARRAY_NOT_FOUND			"SQL/JSON array not found"
@@ -2166,7 +2171,12 @@ executeKeyValueMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 	/* construct object id from its base object and offset inside that */
 	id = jb->type != jbvBinary ? 0 :
+#ifdef JSONPATH_JSON_C
+		(int64) ((char *) ((JsonContainer *) jbc)->data -
+						   (char *) cxt->baseObject.jbc->data);
+#else
 		(int64) ((char *) jbc - (char *) cxt->baseObject.jbc);
+#endif
 	id += (int64) cxt->baseObject.id * INT64CONST(10000000000);
 
 	idval.type = jbvNumeric;
@@ -2364,7 +2374,7 @@ JsonbArraySize(JsonItem *jb)
 
 	if (jb->type == jbvBinary)
 	{
-		JsonbContainer *jbc = jb->jbv.val.binary.data;
+		JsonbContainer *jbc = (void *) jb->jbv.val.binary.data;
 
 		if (JsonContainerIsArray(jbc) && !JsonContainerIsScalar(jbc))
 			return JsonContainerSize(jbc);
@@ -2694,6 +2704,7 @@ JsonValueListNext(const JsonValueList *jvl, JsonValueListIterator *it)
 	return result;
 }
 
+#ifndef JSONPATH_JSON_C
 /*
  * Initialize a binary JsonbValue with the given jsonb container.
  */
@@ -2706,6 +2717,7 @@ JsonbInitBinary(JsonbValue *jbv, Jsonb *jb)
 
 	return jbv;
 }
+#endif
 
 /*
  * Returns jbv* type of of JsonbValue. Note, it never returns jbvBinary as is.
