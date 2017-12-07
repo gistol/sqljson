@@ -1140,7 +1140,7 @@ SELECT * FROM JSON_TABLE(jsonb '1', '$' COLUMNS (a int PATH '$.a' ERROR ON EMPTY
 
 SELECT * FROM JSON_TABLE(jsonb '1', '$' COLUMNS (a int PATH 'strict $.a' ERROR ON EMPTY) ERROR ON ERROR) jt;
 ERROR:  SQL/JSON member not found
-DETAIL:  jsonpath member accessor is applied to not an object
+DETAIL:  jsonpath member accessor can only be applied to an object
 SELECT * FROM JSON_TABLE(jsonb '1', '$' COLUMNS (a int PATH 'lax $.a' ERROR ON EMPTY) ERROR ON ERROR) jt;
 ERROR:  no SQL/JSON item
 SELECT * FROM JSON_TABLE(jsonb '"a"', '$' COLUMNS (a int PATH '$'   DEFAULT 1 ON EMPTY DEFAULT 2 ON ERROR)) jt;
@@ -1903,6 +1903,11 @@ SELECT JSON_QUERY(jsonb '{"a": 123}', '$' || '.' || 'a' WITH WRAPPER);
 SELECT JSON_QUERY(jsonb '{"a": 123}', 'error' || ' ' || 'error');
 ERROR:  bad jsonpath representation
 DETAIL:  syntax error, unexpected IDENT_P at or near "error"
+-- Should fail (not supported)
+SELECT * FROM JSON_TABLE(jsonb '{"a": 123}', '$' || '.' || 'a' COLUMNS (foo int));
+ERROR:  only string constants supported in JSON_TABLE path specification
+LINE 1: SELECT * FROM JSON_TABLE(jsonb '{"a": 123}', '$' || '.' || '...
+                                                     ^
 -- Test parallel JSON_VALUE()
 CREATE TABLE test_parallel_jsonb_value AS
 SELECT i::text::jsonb AS js
