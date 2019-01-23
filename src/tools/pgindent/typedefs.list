@@ -1125,6 +1125,7 @@ JsonPathItemType
 JsonPathParseItem
 JsonPathParseResult
 JsonPathPredicateCallback
+JsonPathUserFuncContext
 JsonSemAction
 JsonTokenType
 JsonTransformStringValuesAction
