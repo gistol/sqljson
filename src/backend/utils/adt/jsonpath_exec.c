@@ -91,6 +91,15 @@
 #define ERRMSG_INVALID_ARGUMENT_FOR_JSON_DATETIME_FUNCTION	\
 	"invalid argument for SQL/JSON datetime function"
 
+/* SQL/JSON item */
+typedef union JsonItem
+{
+	JsonbValue jbv;
+	enum jbvType type;
+} JsonItem;
+
+#define JsonbValueToJsonItem(jbv) ((JsonItem *) (jbv))
+
 /*
  * Represents "base object" and it's "id" for .keyvalue() evaluation.
  */
@@ -107,14 +116,14 @@ typedef struct JsonBaseObjectInfo
  */
 typedef struct JsonItemStackEntry
 {
-	JsonbValue *item;
+	JsonItem   *item;
 	struct JsonItemStackEntry *parent;
 } JsonItemStackEntry;
 
 typedef JsonItemStackEntry *JsonItemStack;
 
 typedef int (*JsonPathVarCallback) (void *vars, char *varName, int varNameLen,
-									JsonbValue *val, JsonbValue *baseObject);
+									JsonItem *val, JsonbValue *baseObject);
 
 /*
  * Context of jsonpath execution.
@@ -123,7 +132,7 @@ typedef struct JsonPathExecContext
 {
 	void	   *vars;			/* variables to substitute into jsonpath */
 	JsonPathVarCallback getVar;
-	JsonbValue *root;			/* for $ evaluation */
+	JsonItem   *root;			/* for $ evaluation */
 	JsonItemStack stack;		/* for @ evaluation */
 	JsonBaseObjectInfo baseObject;	/* "base object" for .keyvalue()
 									 * evaluation */
@@ -166,17 +175,17 @@ typedef enum JsonPathExecResult
 #define jperIsError(jper)			((jper) == jperError)
 
 /*
- * List of jsonb values with shortcut for single-value list.
+ * List of SQL/JSON items with shortcut for single-value list.
  */
 typedef struct JsonValueList
 {
-	JsonbValue *singleton;
+	JsonItem   *singleton;
 	List	   *list;
 } JsonValueList;
 
 typedef struct JsonValueListIterator
 {
-	JsonbValue *value;
+	JsonItem   *value;
 	ListCell   *next;
 } JsonValueListIterator;
 
@@ -211,8 +220,8 @@ do { \
 } while (0)
 
 typedef JsonPathBool (*JsonPathPredicateCallback) (JsonPathItem *jsp,
-												   JsonbValue *larg,
-												   JsonbValue *rarg,
+												   JsonItem *larg,
+												   JsonItem *rarg,
 												   void *param);
 typedef Numeric (*BinaryArithmFunc) (Numeric num1, Numeric num2, bool *error);
 
@@ -224,83 +233,87 @@ static JsonPathExecResult executeJsonPath(JsonPath *path, void *vars,
 				JsonPathVarCallback getVar, Jsonb *json, bool throwErrors,
 				JsonValueList *result);
 static JsonPathExecResult executeItem(JsonPathExecContext *cxt,
-			JsonPathItem *jsp, JsonbValue *jb, JsonValueList *found);
+			JsonPathItem *jsp, JsonItem *jb, JsonValueList *found);
 static JsonPathExecResult executeItemOptUnwrapTarget(JsonPathExecContext *cxt,
-						   JsonPathItem *jsp, JsonbValue *jb,
+						   JsonPathItem *jsp, JsonItem *jb,
 						   JsonValueList *found, bool unwrap);
 static JsonPathExecResult executeItemUnwrapTargetArray(JsonPathExecContext *cxt,
-							 JsonPathItem *jsp, JsonbValue *jb,
+							 JsonPathItem *jsp, JsonItem *jb,
 							 JsonValueList *found, bool unwrapElements);
 static JsonPathExecResult executeNextItem(JsonPathExecContext *cxt,
 				JsonPathItem *cur, JsonPathItem *next,
-				JsonbValue *v, JsonValueList *found, bool copy);
+				JsonItem *v, JsonValueList *found, bool copy);
 static JsonPathExecResult executeItemOptUnwrapResult(
-						   JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbValue *jb,
-						   bool unwrap, JsonValueList *found);
+						   JsonPathExecContext *cxt, JsonPathItem *jsp,
+						   JsonItem *jb, bool unwrap, JsonValueList *found);
 static JsonPathExecResult executeItemOptUnwrapResultNoThrow(
 								  JsonPathExecContext *cxt, JsonPathItem *jsp,
-								  JsonbValue *jb, bool unwrap, JsonValueList *found);
+								  JsonItem *jb, bool unwrap,
+								  JsonValueList *found);
 static JsonPathBool executeBoolItem(JsonPathExecContext *cxt,
-				JsonPathItem *jsp, JsonbValue *jb, bool canHaveNext);
+				JsonPathItem *jsp, JsonItem *jb, bool canHaveNext);
 static JsonPathBool executeNestedBoolItem(JsonPathExecContext *cxt,
-					  JsonPathItem *jsp, JsonbValue *jb);
+					  JsonPathItem *jsp, JsonItem *jb);
 static JsonPathExecResult executeAnyItem(JsonPathExecContext *cxt,
 			   JsonPathItem *jsp, JsonbContainer *jbc, JsonValueList *found,
 			   uint32 level, uint32 first, uint32 last,
 			   bool ignoreStructuralErrors, bool unwrapNext);
 static JsonPathBool executePredicate(JsonPathExecContext *cxt,
 				 JsonPathItem *pred, JsonPathItem *larg, JsonPathItem *rarg,
-				 JsonbValue *jb, bool unwrapRightArg,
+				 JsonItem *jb, bool unwrapRightArg,
 				 JsonPathPredicateCallback exec, void *param);
 static JsonPathExecResult executeBinaryArithmExpr(JsonPathExecContext *cxt,
-						JsonPathItem *jsp, JsonbValue *jb,
-						BinaryArithmFunc func, JsonValueList *found);
+						JsonPathItem *jsp, JsonItem *jb, BinaryArithmFunc func,
+						JsonValueList *found);
 static JsonPathExecResult executeUnaryArithmExpr(JsonPathExecContext *cxt,
-					   JsonPathItem *jsp, JsonbValue *jb, PGFunction func,
+					   JsonPathItem *jsp, JsonItem *jb, PGFunction func,
 					   JsonValueList *found);
 static JsonPathBool executeStartsWith(JsonPathItem *jsp,
-				  JsonbValue *whole, JsonbValue *initial, void *param);
-static JsonPathBool executeLikeRegex(JsonPathItem *jsp, JsonbValue *str,
-				 JsonbValue *rarg, void *param);
+				  JsonItem *whole, JsonItem *initial, void *param);
+static JsonPathBool executeLikeRegex(JsonPathItem *jsp, JsonItem *str,
+				 JsonItem *rarg, void *param);
 static JsonPathExecResult executeNumericItemMethod(JsonPathExecContext *cxt,
-						 JsonPathItem *jsp, JsonbValue *jb, bool unwrap, PGFunction func,
+						 JsonPathItem *jsp, JsonItem *jb, bool unwrap, PGFunction func,
 						 JsonValueList *found);
 static JsonPathExecResult executeKeyValueMethod(JsonPathExecContext *cxt,
-					  JsonPathItem *jsp, JsonbValue *jb, JsonValueList *found);
+					  JsonPathItem *jsp, JsonItem *jb, JsonValueList *found);
 static JsonPathExecResult appendBoolResult(JsonPathExecContext *cxt,
 				 JsonPathItem *jsp, JsonValueList *found, JsonPathBool res);
 static void getJsonPathItem(JsonPathExecContext *cxt, JsonPathItem *item,
-				JsonbValue *value);
+				JsonItem *value);
 static void getJsonPathVariable(JsonPathExecContext *cxt,
-					JsonPathItem *variable, JsonbValue *value);
+					JsonPathItem *variable, JsonItem *value);
 static int getJsonPathVariableFromJsonb(void *varsJsonb, char *varName,
-							 int varNameLen, JsonbValue *val,
+							 int varNameLen, JsonItem *val,
 							 JsonbValue *baseObject);
-static int	JsonbArraySize(JsonbValue *jb);
-static JsonPathBool executeComparison(JsonPathItem *cmp, JsonbValue *lv,
-				  JsonbValue *rv, void *p);
-static JsonPathBool compareItems(int32 op, JsonbValue *jb1, JsonbValue *jb2);
+static int	JsonbArraySize(JsonItem *jb);
+static JsonPathBool executeComparison(JsonPathItem *cmp, JsonItem *lv,
+				  JsonItem *rv, void *p);
+static JsonPathBool compareItems(int32 op, JsonItem *jb1, JsonItem *jb2);
 static int	compareNumeric(Numeric a, Numeric b);
-static JsonbValue *copyJsonbValue(JsonbValue *src);
+static JsonItem *copyJsonItem(JsonItem *src);
+static JsonbValue *JsonItemToJsonbValue(JsonItem *jsi, JsonbValue *jbv);
+static Jsonb *JsonItemToJsonb(JsonItem *jsi);
+static const char *JsonItemTypeName(JsonItem *jsi);
 static JsonPathExecResult getArrayIndex(JsonPathExecContext *cxt,
-			  JsonPathItem *jsp, JsonbValue *jb, int32 *index);
+			  JsonPathItem *jsp, JsonItem *jb, int32 *index);
 static JsonBaseObjectInfo setBaseObject(JsonPathExecContext *cxt,
-			  JsonbValue *jbv, int32 id);
-static void JsonValueListAppend(JsonValueList *jvl, JsonbValue *jbv);
+			  JsonItem *jsi, int32 id);
+static void JsonValueListAppend(JsonValueList *jvl, JsonItem *jbv);
 static int	JsonValueListLength(const JsonValueList *jvl);
 static bool JsonValueListIsEmpty(JsonValueList *jvl);
-static JsonbValue *JsonValueListHead(JsonValueList *jvl);
+static JsonItem *JsonValueListHead(JsonValueList *jvl);
 static List *JsonValueListGetList(JsonValueList *jvl);
 static void JsonValueListInitIterator(const JsonValueList *jvl,
 						  JsonValueListIterator *it);
-static JsonbValue *JsonValueListNext(const JsonValueList *jvl,
+static JsonItem *JsonValueListNext(const JsonValueList *jvl,
 				  JsonValueListIterator *it);
-static int	JsonbType(JsonbValue *jb);
+static int	JsonbType(JsonItem *jb);
 static JsonbValue *JsonbInitBinary(JsonbValue *jbv, Jsonb *jb);
-static int	JsonbType(JsonbValue *jb);
-static JsonbValue *getScalar(JsonbValue *scalar, enum jbvType type);
+static JsonItem *getScalar(JsonItem *scalar, enum jbvType type);
 static JsonbValue *wrapItemsInArray(const JsonValueList *items);
 static text *JsonbValueUnquoteText(JsonbValue *jbv);
+static text *JsonItemUnquoteText(JsonItem *jbv);
 
 static bool tryToParseDatetime(text *fmt, text *datetime, char *tzname,
 				   bool strict, Datum *value, Oid *typid,
@@ -310,7 +323,7 @@ static int compareDatetime(Datum val1, Oid typid1, int tz1,
 				bool *error);
 
 static void pushJsonItem(JsonItemStack *stack,
-			 JsonItemStackEntry *entry, JsonbValue *item);
+			 JsonItemStackEntry *entry, JsonItem *item);
 static void popJsonItem(JsonItemStack *stack);
 
 /****************** User interface to JsonPath executor ********************/
@@ -366,12 +379,12 @@ jsonb_path_match(PG_FUNCTION_ARGS)
 
 	if (JsonValueListLength(&cxt.found) == 1)
 	{
-		JsonbValue *jbv = JsonValueListHead(&cxt.found);
+		JsonItem   *jsi = JsonValueListHead(&cxt.found);
 
-		if (jbv->type == jbvBool)
-			PG_RETURN_BOOL(jbv->val.boolean);
+		if (jsi->type == jbvBool)
+			PG_RETURN_BOOL(jsi->jbv.val.boolean);
 
-		if (jbv->type == jbvNull)
+		if (jsi->type == jbvNull)
 			PG_RETURN_NULL();
 	}
 
@@ -406,7 +419,7 @@ jsonb_path_query(PG_FUNCTION_ARGS)
 {
 	FuncCallContext *funcctx;
 	List	   *found;
-	JsonbValue *v;
+	JsonItem   *v;
 	ListCell   *c;
 
 	if (SRF_IS_FIRSTCALL())
@@ -440,7 +453,7 @@ jsonb_path_query(PG_FUNCTION_ARGS)
 	v = lfirst(c);
 	funcctx->user_fctx = list_delete_first(found);
 
-	SRF_RETURN_NEXT(funcctx, JsonbPGetDatum(JsonbValueToJsonb(v)));
+	SRF_RETURN_NEXT(funcctx, JsonbPGetDatum(JsonItemToJsonb(v)));
 }
 
 /*
@@ -477,7 +490,7 @@ jsonb_path_query_first(FunctionCallInfo fcinfo)
 	(void) executeUserFunc(fcinfo, &cxt, false);
 
 	if (JsonValueListLength(&cxt.found) >= 1)
-		jb = JsonbValueToJsonb(JsonValueListHead(&cxt.found));
+		jb = JsonItemToJsonb(JsonValueListHead(&cxt.found));
 	else
 		jb = NULL;
 
@@ -503,7 +516,7 @@ jsonb_path_query_first_text(FunctionCallInfo fcinfo)
 	(void) executeUserFunc(fcinfo, &cxt, false);
 
 	if (JsonValueListLength(&cxt.found) >= 1)
-		txt = JsonbValueUnquoteText(JsonValueListHead(&cxt.found));
+		txt = JsonItemUnquoteText(JsonValueListHead(&cxt.found));
 	else
 		txt = NULL;
 
@@ -601,19 +614,19 @@ executeJsonPath(JsonPath *path, void *vars, JsonPathVarCallback getVar,
 	JsonPathExecContext cxt;
 	JsonPathExecResult res;
 	JsonPathItem jsp;
-	JsonbValue	jbv;
+	JsonItem	jsi;
 	JsonItemStackEntry root;
 
 	jspInit(&jsp, path);
 
-	if (!JsonbExtractScalar(&json->root, &jbv))
-		JsonbInitBinary(&jbv, json);
+	if (!JsonbExtractScalar(&json->root, &jsi.jbv))
+		JsonbInitBinary(&jsi.jbv, json);
 
 	cxt.vars = vars;
 	cxt.getVar = getVar;
 	cxt.laxMode = (path->header & JSONPATH_LAX) != 0;
 	cxt.ignoreStructuralErrors = cxt.laxMode;
-	cxt.root = &jbv;
+	cxt.root = &jsi;
 	cxt.stack = NULL;
 	cxt.baseObject.jbc = NULL;
 	cxt.baseObject.id = 0;
@@ -632,7 +645,7 @@ executeJsonPath(JsonPath *path, void *vars, JsonPathVarCallback getVar,
 		 */
 		JsonValueList vals = {0};
 
-		res = executeItem(&cxt, &jsp, &jbv, &vals);
+		res = executeItem(&cxt, &jsp, &jsi, &vals);
 
 		if (jperIsError(res))
 			return res;
@@ -640,7 +653,7 @@ executeJsonPath(JsonPath *path, void *vars, JsonPathVarCallback getVar,
 		return JsonValueListIsEmpty(&vals) ? jperNotFound : jperOk;
 	}
 
-	res = executeItem(&cxt, &jsp, &jbv, result);
+	res = executeItem(&cxt, &jsp, &jsi, result);
 
 	Assert(!throwErrors || !jperIsError(res));
 
@@ -652,7 +665,7 @@ executeJsonPath(JsonPath *path, void *vars, JsonPathVarCallback getVar,
  */
 static JsonPathExecResult
 executeItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
-			JsonbValue *jb, JsonValueList *found)
+			JsonItem *jb, JsonValueList *found)
 {
 	return executeItemOptUnwrapTarget(cxt, jsp, jb, found, jspAutoUnwrap(cxt));
 }
@@ -664,7 +677,7 @@ executeItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
  */
 static JsonPathExecResult
 executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
-						   JsonbValue *jb, JsonValueList *found, bool unwrap)
+						   JsonItem *jb, JsonValueList *found, bool unwrap)
 {
 	JsonPathItem elem;
 	JsonPathExecResult res = jperNotFound;
@@ -705,13 +718,13 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				key.type = jbvString;
 				key.val.string.val = jspGetString(jsp, &key.val.string.len);
 
-				v = findJsonbValueFromContainer(jb->val.binary.data,
+				v = findJsonbValueFromContainer(jb->jbv.val.binary.data,
 												JB_FOBJECT, &key);
 
 				if (v != NULL)
 				{
-					res = executeNextItem(cxt, jsp, NULL,
-										  v, found, false);
+					jb = JsonbValueToJsonItem(v);
+					res = executeNextItem(cxt, jsp, NULL, jb, found, false);
 
 					/* free value if it was not added to found list */
 					if (jspHasNext(jsp) || !found)
@@ -841,29 +854,31 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 					for (index = index_from; index <= index_to; index++)
 					{
-						JsonbValue *v;
+						JsonItem   *jsi;
 						bool		copy;
 
 						if (singleton)
 						{
-							v = jb;
+							jsi = jb;
 							copy = true;
 						}
 						else
 						{
-							v = getIthJsonbValueFromContainer(jb->val.binary.data,
-															  (uint32) index);
+							JsonbValue *v =
+							getIthJsonbValueFromContainer(jb->jbv.val.binary.data,
+														  (uint32) index);
 
 							if (v == NULL)
 								continue;
 
+							jsi = JsonbValueToJsonItem(v);
 							copy = false;
 						}
 
 						if (!hasNext && !found)
 							return jperOk;
 
-						res = executeNextItem(cxt, jsp, &elem, v, found,
+						res = executeNextItem(cxt, jsp, &elem, jsi, found,
 											  copy);
 
 						if (jperIsError(res))
@@ -894,8 +909,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 		case jpiLast:
 			{
-				JsonbValue	tmpjbv;
-				JsonbValue *lastjbv;
+				JsonItem	tmpjsi;
+				JsonItem   *lastjsi;
 				int			last;
 				bool		hasNext = jspGetNext(jsp, &elem);
 
@@ -911,15 +926,14 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 				last = cxt->innermostArraySize - 1;
 
-				lastjbv = hasNext ? &tmpjbv : palloc(sizeof(*lastjbv));
+				lastjsi = hasNext ? &tmpjsi : palloc(sizeof(*lastjsi));
 
-				lastjbv->type = jbvNumeric;
-				lastjbv->val.numeric =
+				lastjsi->jbv.type = jbvNumeric;
+				lastjsi->jbv.val.numeric =
 					DatumGetNumeric(DirectFunctionCall1(int4_numeric,
 														Int32GetDatum(last)));
 
-				res = executeNextItem(cxt, jsp, &elem,
-									  lastjbv, found, hasNext);
+				res = executeNextItem(cxt, jsp, &elem, lastjsi, found, hasNext);
 			}
 			break;
 
@@ -933,7 +947,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 				return executeAnyItem
 					(cxt, hasNext ? &elem : NULL,
-					 jb->val.binary.data, found, 1, 1, 1,
+					 jb->jbv.val.binary.data, found, 1, 1, 1,
 					 false, jspAutoUnwrap(cxt));
 			}
 			else if (unwrap && JsonbType(jb) == jbvArray)
@@ -1016,7 +1030,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				if (jb->type == jbvBinary)
 					res = executeAnyItem
 						(cxt, hasNext ? &elem : NULL,
-						 jb->val.binary.data, found,
+						 jb->jbv.val.binary.data, found,
 						 1,
 						 jsp->content.anybounds.first,
 						 jsp->content.anybounds.last,
@@ -1030,8 +1044,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 		case jpiString:
 		case jpiVariable:
 			{
-				JsonbValue	vbuf;
-				JsonbValue *v;
+				JsonItem	vbuf;
+				JsonItem   *v;
 				bool		hasNext = jspGetNext(jsp, &elem);
 
 				if (!hasNext && !found)
@@ -1053,14 +1067,13 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 		case jpiType:
 			{
-				JsonbValue *jbv = palloc(sizeof(*jbv));
+				JsonItem	jsi;
 
-				jbv->type = jbvString;
-				jbv->val.string.val = pstrdup(JsonbTypeName(jb));
-				jbv->val.string.len = strlen(jbv->val.string.val);
+				jsi.jbv.type = jbvString;
+				jsi.jbv.val.string.val = pstrdup(JsonItemTypeName(jb));
+				jsi.jbv.val.string.len = strlen(jsi.jbv.val.string.val);
 
-				res = executeNextItem(cxt, jsp, NULL, jbv,
-									  found, false);
+				res = executeNextItem(cxt, jsp, NULL, &jsi, found, true);
 			}
 			break;
 
@@ -1087,8 +1100,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 				jb = palloc(sizeof(*jb));
 
-				jb->type = jbvNumeric;
-				jb->val.numeric =
+				jb->jbv.type = jbvNumeric;
+				jb->jbv.val.numeric =
 					DatumGetNumeric(DirectFunctionCall1(int4_numeric,
 														Int32GetDatum(size)));
 
@@ -1110,7 +1123,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 		case jpiDouble:
 			{
-				JsonbValue	jbv;
+				JsonItem	jsi;
 
 				if (unwrap && JsonbType(jb) == jbvArray)
 					return executeItemUnwrapTargetArray(cxt, jsp, jb, found,
@@ -1119,7 +1132,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				if (jb->type == jbvNumeric)
 				{
 					char	   *tmp = DatumGetCString(DirectFunctionCall1(numeric_out,
-																		  NumericGetDatum(jb->val.numeric)));
+																		  NumericGetDatum(jb->jbv.val.numeric)));
 					bool		have_error = false;
 
 					(void) float8in_internal_opt_error(tmp,
@@ -1142,8 +1155,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				{
 					/* cast string as double */
 					double		val;
-					char	   *tmp = pnstrdup(jb->val.string.val,
-											   jb->val.string.len);
+					char	   *tmp = pnstrdup(jb->jbv.val.string.val,
+											   jb->jbv.val.string.len);
 					bool		have_error = false;
 
 					val = float8in_internal_opt_error(tmp,
@@ -1160,10 +1173,10 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 														"only be applied to a numeric value",
 														jspOperationName(jsp->type)))));
 
-					jb = &jbv;
-					jb->type = jbvNumeric;
-					jb->val.numeric = DatumGetNumeric(DirectFunctionCall1(float8_numeric,
-																		  Float8GetDatum(val)));
+					jb = &jsi;
+					jb->jbv.type = jbvNumeric;
+					jb->jbv.val.numeric = DatumGetNumeric(DirectFunctionCall1(float8_numeric,
+																			  Float8GetDatum(val)));
 					res = jperOk;
 				}
 
@@ -1203,8 +1216,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 													"applied to not a string",
 													jspOperationName(jsp->type)))));
 
-				datetime = cstring_to_text_with_len(jb->val.string.val,
-													jb->val.string.len);
+				datetime = cstring_to_text_with_len(jb->jbv.val.string.val,
+													jb->jbv.val.string.len);
 
 				if (jsp->content.args.left)
 				{
@@ -1224,7 +1237,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					{
 						JsonValueList tzlist = {0};
 						JsonPathExecResult tzres;
-						JsonbValue *tzjbv;
+						JsonItem   *tzjsi;
 
 						jspGetRightArg(jsp, &elem);
 						tzres = executeItem(cxt, &elem, jb, &tzlist);
@@ -1232,8 +1245,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 							return tzres;
 
 						if (JsonValueListLength(&tzlist) != 1 ||
-							((tzjbv = JsonValueListHead(&tzlist))->type != jbvString &&
-							 tzjbv->type != jbvNumeric))
+							((tzjsi = JsonValueListHead(&tzlist))->type != jbvString &&
+							 tzjsi->type != jbvNumeric))
 							RETURN_ERROR(ereport(ERROR,
 												 (errcode(ERRCODE_INVALID_ARGUMENT_FOR_JSON_DATETIME_FUNCTION),
 												  errmsg(ERRMSG_INVALID_ARGUMENT_FOR_JSON_DATETIME_FUNCTION),
@@ -1242,14 +1255,14 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 															"is not a singleton string or number",
 															jspOperationName(jsp->type)))));
 
-						if (tzjbv->type == jbvString)
-							tzname = pnstrdup(tzjbv->val.string.val,
-											  tzjbv->val.string.len);
+						if (tzjsi->type == jbvString)
+							tzname = pnstrdup(tzjsi->jbv.val.string.val,
+											  tzjsi->jbv.val.string.len);
 						else
 						{
 							bool		error = false;
 
-							tz = numeric_int4_opt_error(tzjbv->val.numeric,
+							tz = numeric_int4_opt_error(tzjsi->jbv.val.numeric,
 														&error);
 
 							if (error || tz == PG_INT32_MIN)
@@ -1342,11 +1355,11 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 				jb = hasNext ? &jbvbuf : palloc(sizeof(*jb));
 
-				jb->type = jbvDatetime;
-				jb->val.datetime.value = value;
-				jb->val.datetime.typid = typid;
-				jb->val.datetime.typmod = typmod;
-				jb->val.datetime.tz = tz;
+				jb->jbv.type = jbvDatetime;
+				jb->jbv.val.datetime.value = value;
+				jb->jbv.val.datetime.typid = typid;
+				jb->jbv.val.datetime.typmod = typmod;
+				jb->jbv.val.datetime.tz = tz;
 
 				res = executeNextItem(cxt, jsp, &elem, jb, found, hasNext);
 			}
@@ -1370,7 +1383,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
  */
 static JsonPathExecResult
 executeItemUnwrapTargetArray(JsonPathExecContext *cxt, JsonPathItem *jsp,
-							 JsonbValue *jb, JsonValueList *found,
+							 JsonItem *jb, JsonValueList *found,
 							 bool unwrapElements)
 {
 	if (jb->type != jbvBinary)
@@ -1380,7 +1393,7 @@ executeItemUnwrapTargetArray(JsonPathExecContext *cxt, JsonPathItem *jsp,
 	}
 
 	return executeAnyItem
-		(cxt, jsp, jb->val.binary.data, found, 1, 1, 1,
+		(cxt, jsp, jb->jbv.val.binary.data, found, 1, 1, 1,
 		 false, unwrapElements);
 }
 
@@ -1391,7 +1404,7 @@ executeItemUnwrapTargetArray(JsonPathExecContext *cxt, JsonPathItem *jsp,
 static JsonPathExecResult
 executeNextItem(JsonPathExecContext *cxt,
 				JsonPathItem *cur, JsonPathItem *next,
-				JsonbValue *v, JsonValueList *found, bool copy)
+				JsonItem *v, JsonValueList *found, bool copy)
 {
 	JsonPathItem elem;
 	bool		hasNext;
@@ -1410,7 +1423,7 @@ executeNextItem(JsonPathExecContext *cxt,
 		return executeItem(cxt, next, v, found);
 
 	if (found)
-		JsonValueListAppend(found, copy ? copyJsonbValue(v) : v);
+		JsonValueListAppend(found, copy ? copyJsonItem(v) : v);
 
 	return jperOk;
 }
@@ -1421,7 +1434,7 @@ executeNextItem(JsonPathExecContext *cxt,
  */
 static JsonPathExecResult
 executeItemOptUnwrapResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
-						   JsonbValue *jb, bool unwrap,
+						   JsonItem *jb, bool unwrap,
 						   JsonValueList *found)
 {
 	if (unwrap && jspAutoUnwrap(cxt))
@@ -1429,7 +1442,7 @@ executeItemOptUnwrapResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
 		JsonValueList seq = {0};
 		JsonValueListIterator it;
 		JsonPathExecResult res = executeItem(cxt, jsp, jb, &seq);
-		JsonbValue *item;
+		JsonItem   *item;
 
 		if (jperIsError(res))
 			return res;
@@ -1457,7 +1470,7 @@ executeItemOptUnwrapResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
 static JsonPathExecResult
 executeItemOptUnwrapResultNoThrow(JsonPathExecContext *cxt,
 								  JsonPathItem *jsp,
-								  JsonbValue *jb, bool unwrap,
+								  JsonItem *jb, bool unwrap,
 								  JsonValueList *found)
 {
 	JsonPathExecResult res;
@@ -1473,7 +1486,7 @@ executeItemOptUnwrapResultNoThrow(JsonPathExecContext *cxt,
 /* Execute boolean-valued jsonpath expression. */
 static JsonPathBool
 executeBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
-				JsonbValue *jb, bool canHaveNext)
+				JsonItem *jb, bool canHaveNext)
 {
 	JsonPathItem larg;
 	JsonPathItem rarg;
@@ -1606,7 +1619,7 @@ executeBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
  */
 static JsonPathBool
 executeNestedBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
-					  JsonbValue *jb)
+					  JsonItem *jb)
 {
 	JsonItemStackEntry current;
 	JsonPathBool res;
@@ -1632,7 +1645,7 @@ executeAnyItem(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbContainer *jbc,
 	JsonPathExecResult res = jperNotFound;
 	JsonbIterator *it;
 	int32		r;
-	JsonbValue	v;
+	JsonItem	v;
 
 	check_stack_depth();
 
@@ -1644,11 +1657,11 @@ executeAnyItem(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbContainer *jbc,
 	/*
 	 * Recursively iterate over jsonb objects/arrays
 	 */
-	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
+	while ((r = JsonbIteratorNext(&it, &v.jbv, true)) != WJB_DONE)
 	{
 		if (r == WJB_KEY)
 		{
-			r = JsonbIteratorNext(&it, &v, true);
+			r = JsonbIteratorNext(&it, &v.jbv, true);
 			Assert(r == WJB_VALUE);
 		}
 
@@ -1681,7 +1694,7 @@ executeAnyItem(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbContainer *jbc,
 						break;
 				}
 				else if (found)
-					JsonValueListAppend(found, copyJsonbValue(&v));
+					JsonValueListAppend(found, copyJsonItem(&v));
 				else
 					return jperOk;
 			}
@@ -1689,7 +1702,7 @@ executeAnyItem(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbContainer *jbc,
 			if (level < last && v.type == jbvBinary)
 			{
 				res = executeAnyItem
-					(cxt, jsp, v.val.binary.data, found,
+					(cxt, jsp, v.jbv.val.binary.data, found,
 					 level + 1, first, last,
 					 ignoreStructuralErrors, unwrapNext);
 
@@ -1717,7 +1730,7 @@ executeAnyItem(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbContainer *jbc,
  */
 static JsonPathBool
 executePredicate(JsonPathExecContext *cxt, JsonPathItem *pred,
-				 JsonPathItem *larg, JsonPathItem *rarg, JsonbValue *jb,
+				 JsonPathItem *larg, JsonPathItem *rarg, JsonItem *jb,
 				 bool unwrapRightArg, JsonPathPredicateCallback exec,
 				 void *param)
 {
@@ -1725,7 +1738,7 @@ executePredicate(JsonPathExecContext *cxt, JsonPathItem *pred,
 	JsonValueListIterator lseqit;
 	JsonValueList lseq = {0};
 	JsonValueList rseq = {0};
-	JsonbValue *lval;
+	JsonItem *lval;
 	bool		error = false;
 	bool		found = false;
 
@@ -1747,7 +1760,7 @@ executePredicate(JsonPathExecContext *cxt, JsonPathItem *pred,
 	while ((lval = JsonValueListNext(&lseq, &lseqit)))
 	{
 		JsonValueListIterator rseqit;
-		JsonbValue *rval;
+		JsonItem   *rval;
 		bool		first = true;
 
 		JsonValueListInitIterator(&rseq, &rseqit);
@@ -1797,15 +1810,15 @@ executePredicate(JsonPathExecContext *cxt, JsonPathItem *pred,
  */
 static JsonPathExecResult
 executeBinaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
-						JsonbValue *jb, BinaryArithmFunc func,
+						JsonItem *jb, BinaryArithmFunc func,
 						JsonValueList *found)
 {
 	JsonPathExecResult jper;
 	JsonPathItem elem;
 	JsonValueList lseq = {0};
 	JsonValueList rseq = {0};
-	JsonbValue *lval;
-	JsonbValue *rval;
+	JsonItem   *lval;
+	JsonItem   *rval;
 	Numeric		res;
 
 	jspGetLeftArg(jsp, &elem);
@@ -1844,13 +1857,13 @@ executeBinaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 	if (jspThrowErrors(cxt))
 	{
-		res = func(lval->val.numeric, rval->val.numeric, NULL);
+		res = func(lval->jbv.val.numeric, rval->jbv.val.numeric, NULL);
 	}
 	else
 	{
 		bool		error = false;
 
-		res = func(lval->val.numeric, rval->val.numeric, &error);
+		res = func(lval->jbv.val.numeric, rval->jbv.val.numeric, &error);
 
 		if (error)
 			return jperError;
@@ -1860,8 +1873,8 @@ executeBinaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
 		return jperOk;
 
 	lval = palloc(sizeof(*lval));
-	lval->type = jbvNumeric;
-	lval->val.numeric = res;
+	lval->jbv.type = jbvNumeric;
+	lval->jbv.val.numeric = res;
 
 	return executeNextItem(cxt, jsp, &elem, lval, found, false);
 }
@@ -1872,14 +1885,14 @@ executeBinaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
  */
 static JsonPathExecResult
 executeUnaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
-					   JsonbValue *jb, PGFunction func, JsonValueList *found)
+					   JsonItem *jb, PGFunction func, JsonValueList *found)
 {
 	JsonPathExecResult jper;
 	JsonPathExecResult jper2;
 	JsonPathItem elem;
 	JsonValueList seq = {0};
 	JsonValueListIterator it;
-	JsonbValue *val;
+	JsonItem   *val;
 	bool		hasNext;
 
 	jspGetArg(jsp, &elem);
@@ -1914,9 +1927,9 @@ executeUnaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
 		}
 
 		if (func)
-			val->val.numeric =
+			val->jbv.val.numeric =
 				DatumGetNumeric(DirectFunctionCall1(func,
-													NumericGetDatum(val->val.numeric)));
+													NumericGetDatum(val->jbv.val.numeric)));
 
 		jper2 = executeNextItem(cxt, jsp, &elem, val, found, false);
 
@@ -1940,7 +1953,7 @@ executeUnaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
  * Check if the 'whole' string starts from 'initial' string.
  */
 static JsonPathBool
-executeStartsWith(JsonPathItem *jsp, JsonbValue *whole, JsonbValue *initial,
+executeStartsWith(JsonPathItem *jsp, JsonItem *whole, JsonItem *initial,
 				  void *param)
 {
 	if (!(whole = getScalar(whole, jbvString)))
@@ -1949,10 +1962,10 @@ executeStartsWith(JsonPathItem *jsp, JsonbValue *whole, JsonbValue *initial,
 	if (!(initial = getScalar(initial, jbvString)))
 		return jpbUnknown;		/* error */
 
-	if (whole->val.string.len >= initial->val.string.len &&
-		!memcmp(whole->val.string.val,
-				initial->val.string.val,
-				initial->val.string.len))
+	if (whole->jbv.val.string.len >= initial->jbv.val.string.len &&
+		!memcmp(whole->jbv.val.string.val,
+				initial->jbv.val.string.val,
+				initial->jbv.val.string.len))
 		return jpbTrue;
 
 	return jpbFalse;
@@ -1964,7 +1977,7 @@ executeStartsWith(JsonPathItem *jsp, JsonbValue *whole, JsonbValue *initial,
  * Check if the string matches regex pattern.
  */
 static JsonPathBool
-executeLikeRegex(JsonPathItem *jsp, JsonbValue *str, JsonbValue *rarg,
+executeLikeRegex(JsonPathItem *jsp, JsonItem *str, JsonItem *rarg,
 				 void *param)
 {
 	JsonLikeRegexContext *cxt = param;
@@ -1994,8 +2007,8 @@ executeLikeRegex(JsonPathItem *jsp, JsonbValue *str, JsonbValue *rarg,
 			cxt->cflags |= REG_EXPANDED;
 	}
 
-	if (RE_compile_and_execute(cxt->regex, str->val.string.val,
-							   str->val.string.len,
+	if (RE_compile_and_execute(cxt->regex, str->jbv.val.string.val,
+							   str->jbv.val.string.len,
 							   cxt->cflags, DEFAULT_COLLATION_OID, 0, NULL))
 		return jpbTrue;
 
@@ -2008,7 +2021,7 @@ executeLikeRegex(JsonPathItem *jsp, JsonbValue *str, JsonbValue *rarg,
  */
 static JsonPathExecResult
 executeNumericItemMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
-						 JsonbValue *jb, bool unwrap, PGFunction func,
+						 JsonItem *jb, bool unwrap, PGFunction func,
 						 JsonValueList *found)
 {
 	JsonPathItem next;
@@ -2025,14 +2038,14 @@ executeNumericItemMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 										"be applied to a numeric value",
 										jspOperationName(jsp->type)))));
 
-	datum = DirectFunctionCall1(func, NumericGetDatum(jb->val.numeric));
+	datum = DirectFunctionCall1(func, NumericGetDatum(jb->jbv.val.numeric));
 
 	if (!jspGetNext(jsp, &next) && !found)
 		return jperOk;
 
 	jb = palloc(sizeof(*jb));
-	jb->type = jbvNumeric;
-	jb->val.numeric = DatumGetNumeric(datum);
+	jb->jbv.type = jbvNumeric;
+	jb->jbv.val.numeric = DatumGetNumeric(datum);
 
 	return executeNextItem(cxt, jsp, &next, jb, found, false);
 }
@@ -2062,7 +2075,7 @@ executeNumericItemMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
  */
 static JsonPathExecResult
 executeKeyValueMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
-					  JsonbValue *jb, JsonValueList *found)
+					  JsonItem *jb, JsonValueList *found)
 {
 	JsonPathExecResult res = jperNotFound;
 	JsonPathItem next;
@@ -2086,7 +2099,7 @@ executeKeyValueMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 										"can only be applied to an object",
 										jspOperationName(jsp->type)))));
 
-	jbc = jb->val.binary.data;
+	jbc = jb->jbv.val.binary.data;
 
 	if (!JsonContainerSize(jbc))
 		return jperNotFound;	/* no key-value pairs */
@@ -2119,7 +2132,7 @@ executeKeyValueMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 	while ((tok = JsonbIteratorNext(&it, &key, true)) != WJB_DONE)
 	{
 		JsonBaseObjectInfo baseObject;
-		JsonbValue	obj;
+		JsonItem	obj;
 		JsonbParseState *ps;
 		JsonbValue *keyval;
 		Jsonb	   *jsonb;
@@ -2151,7 +2164,7 @@ executeKeyValueMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 
 		jsonb = JsonbValueToJsonb(keyval);
 
-		JsonbInitBinary(&obj, jsonb);
+		JsonbInitBinary(&obj.jbv, jsonb);
 
 		baseObject = setBaseObject(cxt, &obj, cxt->lastGeneratedObjectId++);
 
@@ -2178,22 +2191,22 @@ appendBoolResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				 JsonValueList *found, JsonPathBool res)
 {
 	JsonPathItem next;
-	JsonbValue	jbv;
+	JsonItem	jsi;
 
 	if (!jspGetNext(jsp, &next) && !found)
 		return jperOk;			/* found singleton boolean value */
 
 	if (res == jpbUnknown)
 	{
-		jbv.type = jbvNull;
+		jsi.jbv.type = jbvNull;
 	}
 	else
 	{
-		jbv.type = jbvBool;
-		jbv.val.boolean = res == jpbTrue;
+		jsi.jbv.type = jbvBool;
+		jsi.jbv.val.boolean = res == jpbTrue;
 	}
 
-	return executeNextItem(cxt, jsp, &next, &jbv, found, true);
+	return executeNextItem(cxt, jsp, &next, &jsi, found, true);
 }
 
 /*
@@ -2203,7 +2216,7 @@ appendBoolResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
  */
 static void
 getJsonPathItem(JsonPathExecContext *cxt, JsonPathItem *item,
-				JsonbValue *value)
+				JsonItem *value)
 {
 	switch (item->type)
 	{
@@ -2212,16 +2225,16 @@ getJsonPathItem(JsonPathExecContext *cxt, JsonPathItem *item,
 			break;
 		case jpiBool:
 			value->type = jbvBool;
-			value->val.boolean = jspGetBool(item);
+			value->jbv.val.boolean = jspGetBool(item);
 			break;
 		case jpiNumeric:
 			value->type = jbvNumeric;
-			value->val.numeric = jspGetNumeric(item);
+			value->jbv.val.numeric = jspGetNumeric(item);
 			break;
 		case jpiString:
 			value->type = jbvString;
-			value->val.string.val = jspGetString(item,
-												 &value->val.string.len);
+			value->jbv.val.string.val = jspGetString(item,
+													 &value->jbv.val.string.len);
 			break;
 		case jpiVariable:
 			getJsonPathVariable(cxt, item, value);
@@ -2236,11 +2249,11 @@ getJsonPathItem(JsonPathExecContext *cxt, JsonPathItem *item,
  */
 static void
 getJsonPathVariable(JsonPathExecContext *cxt, JsonPathItem *variable,
-					JsonbValue *value)
+					JsonItem *value)
 {
 	char	   *varName;
 	int			varNameLength;
-	JsonbValue	baseObject;
+	JsonItem	baseObject;
 	int			baseObjectId;
 
 	Assert(variable->type == jpiVariable);
@@ -2248,7 +2261,7 @@ getJsonPathVariable(JsonPathExecContext *cxt, JsonPathItem *variable,
 
 	if (!cxt->vars ||
 		(baseObjectId = cxt->getVar(cxt->vars, varName, varNameLength, value,
-									&baseObject)) < 0)
+									&baseObject.jbv)) < 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("cannot find jsonpath variable '%s'",
@@ -2260,7 +2273,7 @@ getJsonPathVariable(JsonPathExecContext *cxt, JsonPathItem *variable,
 
 static int
 getJsonPathVariableFromJsonb(void *varsJsonb, char *varName, int varNameLength,
-							 JsonbValue *value, JsonbValue *baseObject)
+							 JsonItem *value, JsonbValue *baseObject)
 {
 	Jsonb	   *vars = varsJsonb;
 	JsonbValue	tmp;
@@ -2286,7 +2299,7 @@ getJsonPathVariableFromJsonb(void *varsJsonb, char *varName, int varNameLength,
 	if (!v)
 		return -1;
 
-	*value = *v;
+	value->jbv = *v;
 	pfree(v);
 
 	JsonbInitBinary(baseObject, vars);
@@ -2299,13 +2312,13 @@ getJsonPathVariableFromJsonb(void *varsJsonb, char *varName, int varNameLength,
  * Returns the size of an array item, or -1 if item is not an array.
  */
 static int
-JsonbArraySize(JsonbValue *jb)
+JsonbArraySize(JsonItem *jb)
 {
 	Assert(jb->type != jbvArray);
 
 	if (jb->type == jbvBinary)
 	{
-		JsonbContainer *jbc = jb->val.binary.data;
+		JsonbContainer *jbc = jb->jbv.val.binary.data;
 
 		if (JsonContainerIsArray(jbc) && !JsonContainerIsScalar(jbc))
 			return JsonContainerSize(jbc);
@@ -2316,7 +2329,7 @@ JsonbArraySize(JsonbValue *jb)
 
 /* Comparison predicate callback. */
 static JsonPathBool
-executeComparison(JsonPathItem *cmp, JsonbValue *lv, JsonbValue *rv, void *p)
+executeComparison(JsonPathItem *cmp, JsonItem *lv, JsonItem *rv, void *p)
 {
 	return compareItems(cmp->type, lv, rv);
 }
@@ -2325,8 +2338,10 @@ executeComparison(JsonPathItem *cmp, JsonbValue *lv, JsonbValue *rv, void *p)
  * Compare two SQL/JSON items using comparison operation 'op'.
  */
 static JsonPathBool
-compareItems(int32 op, JsonbValue *jb1, JsonbValue *jb2)
+compareItems(int32 op, JsonItem *jsi1, JsonItem *jsi2)
 {
+	JsonbValue *jb1 = &jsi1->jbv;
+	JsonbValue *jb2 = &jsi2->jbv;
 	int			cmp;
 	bool		res;
 
@@ -2430,14 +2445,34 @@ compareNumeric(Numeric a, Numeric b)
 											 NumericGetDatum(b)));
 }
 
-static JsonbValue *
-copyJsonbValue(JsonbValue *src)
+static JsonItem *
+copyJsonItem(JsonItem *src)
 {
-	JsonbValue *dst = palloc(sizeof(*dst));
+	JsonItem *dst = palloc(sizeof(*dst));
 
 	*dst = *src;
 
 	return dst;
+}
+
+static JsonbValue *
+JsonItemToJsonbValue(JsonItem *jsi, JsonbValue *jbv)
+{
+	return &jsi->jbv;
+}
+
+static Jsonb *
+JsonItemToJsonb(JsonItem *jsi)
+{
+	JsonbValue	jbv;
+
+	return JsonbValueToJsonb(JsonItemToJsonbValue(jsi, &jbv));
+}
+
+static const char *
+JsonItemTypeName(JsonItem *jsi)
+{
+	return JsonbTypeName(&jsi->jbv);
 }
 
 /*
@@ -2445,10 +2480,10 @@ copyJsonbValue(JsonbValue *src)
  * the integer type with truncation.
  */
 static JsonPathExecResult
-getArrayIndex(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbValue *jb,
+getArrayIndex(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonItem *jb,
 			  int32 *index)
 {
-	JsonbValue *jbv;
+	JsonItem   *jbv;
 	JsonValueList found = {0};
 	JsonPathExecResult res = executeItem(cxt, jsp, jb, &found);
 	Datum		numeric_index;
@@ -2466,7 +2501,7 @@ getArrayIndex(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbValue *jb,
 										"singleton numeric value"))));
 
 	numeric_index = DirectFunctionCall2(numeric_trunc,
-										NumericGetDatum(jbv->val.numeric),
+										NumericGetDatum(jbv->jbv.val.numeric),
 										Int32GetDatum(0));
 
 	*index = numeric_int4_opt_error(DatumGetNumeric(numeric_index),
@@ -2484,19 +2519,19 @@ getArrayIndex(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbValue *jb,
 
 /* Save base object and its id needed for the execution of .keyvalue(). */
 static JsonBaseObjectInfo
-setBaseObject(JsonPathExecContext *cxt, JsonbValue *jbv, int32 id)
+setBaseObject(JsonPathExecContext *cxt, JsonItem *jbv, int32 id)
 {
 	JsonBaseObjectInfo baseObject = cxt->baseObject;
 
 	cxt->baseObject.jbc = jbv->type != jbvBinary ? NULL :
-		(JsonbContainer *) jbv->val.binary.data;
+		(JsonbContainer *) jbv->jbv.val.binary.data;
 	cxt->baseObject.id = id;
 
 	return baseObject;
 }
 
 static void
-JsonValueListAppend(JsonValueList *jvl, JsonbValue *jbv)
+JsonValueListAppend(JsonValueList *jvl, JsonItem *jbv)
 {
 	if (jvl->singleton)
 	{
@@ -2521,7 +2556,7 @@ JsonValueListIsEmpty(JsonValueList *jvl)
 	return !jvl->singleton && list_length(jvl->list) <= 0;
 }
 
-static JsonbValue *
+static JsonItem *
 JsonValueListHead(JsonValueList *jvl)
 {
 	return jvl->singleton ? jvl->singleton : linitial(jvl->list);
@@ -2546,7 +2581,7 @@ JsonValueListInitIterator(const JsonValueList *jvl, JsonValueListIterator *it)
 	}
 	else if (list_head(jvl->list) != NULL)
 	{
-		it->value = (JsonbValue *) linitial(jvl->list);
+		it->value = (JsonItem *) linitial(jvl->list);
 		it->next = lnext(list_head(jvl->list));
 	}
 	else
@@ -2559,10 +2594,10 @@ JsonValueListInitIterator(const JsonValueList *jvl, JsonValueListIterator *it)
 /*
  * Get the next item from the sequence advancing iterator.
  */
-static JsonbValue *
+static JsonItem *
 JsonValueListNext(const JsonValueList *jvl, JsonValueListIterator *it)
 {
-	JsonbValue *result = it->value;
+	JsonItem *result = it->value;
 
 	if (it->next)
 	{
@@ -2594,13 +2629,13 @@ JsonbInitBinary(JsonbValue *jbv, Jsonb *jb)
  * Returns jbv* type of of JsonbValue. Note, it never returns jbvBinary as is.
  */
 static int
-JsonbType(JsonbValue *jb)
+JsonbType(JsonItem *jb)
 {
 	int			type = jb->type;
 
 	if (jb->type == jbvBinary)
 	{
-		JsonbContainer *jbc = (void *) jb->val.binary.data;
+		JsonbContainer *jbc = (void *) jb->jbv.val.binary.data;
 
 		/* Scalars should be always extracted during jsonpath execution. */
 		Assert(!JsonContainerIsScalar(jbc));
@@ -2678,13 +2713,19 @@ JsonbValueUnquoteText(JsonbValue *jbv)
 		return cstring_to_text_with_len(str, len);
 }
 
+static text *
+JsonItemUnquoteText(JsonItem *jsi)
+{
+	return JsonbValueUnquoteText(&jsi->jbv);
+}
+
 /* Get scalar of given type or NULL on type mismatch */
-static JsonbValue *
-getScalar(JsonbValue *scalar, enum jbvType type)
+static JsonItem *
+getScalar(JsonItem *scalar, enum jbvType type)
 {
 	/* Scalars should be always extracted during jsonpath execution. */
 	Assert(scalar->type != jbvBinary ||
-		   !JsonContainerIsScalar(scalar->val.binary.data));
+		   !JsonContainerIsScalar(scalar->jbv.val.binary.data));
 
 	return scalar->type == type ? scalar : NULL;
 }
@@ -2695,20 +2736,23 @@ wrapItemsInArray(const JsonValueList *items)
 {
 	JsonbParseState *ps = NULL;
 	JsonValueListIterator it;
-	JsonbValue *jbv;
+	JsonItem   *jsi;
 
 	pushJsonbValue(&ps, WJB_BEGIN_ARRAY, NULL);
 
 	JsonValueListInitIterator(items, &it);
-	while ((jbv = JsonValueListNext(items, &it)))
-		pushJsonbValue(&ps, WJB_ELEM, jbv);
+	while ((jsi = JsonValueListNext(items, &it)))
+	{
+		JsonbValue	jbv;
+
+		pushJsonbValue(&ps, WJB_ELEM, JsonItemToJsonbValue(jsi, &jbv));
+	}
 
 	return pushJsonbValue(&ps, WJB_END_ARRAY, NULL);
 }
 
 static void
-pushJsonItem(JsonItemStack *stack, JsonItemStackEntry *entry,
-			 JsonbValue *item)
+pushJsonItem(JsonItemStack *stack, JsonItemStackEntry *entry, JsonItem *item)
 {
 	entry->item = item;
 	entry->parent = *stack;
