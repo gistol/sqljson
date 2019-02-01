@@ -230,10 +230,10 @@ select json_path_query('1', 'lax $.a');
 
 select json_path_query('1', 'strict $.a');
 ERROR:  SQL/JSON member not found
-DETAIL:  jsonpath member accessor is applied to not an object
+DETAIL:  jsonpath member accessor can only be applied to an object
 select json_path_query('1', 'strict $.*');
 ERROR:  SQL/JSON object not found
-DETAIL:  jsonpath wildcard member accessor is applied to not an object
+DETAIL:  jsonpath wildcard member accessor can only be applied to an object
 select json_path_query('[]', 'lax $.a');
  json_path_query 
 -----------------
@@ -241,7 +241,7 @@ select json_path_query('[]', 'lax $.a');
 
 select json_path_query('[]', 'strict $.a');
 ERROR:  SQL/JSON member not found
-DETAIL:  jsonpath member accessor is applied to not an object
+DETAIL:  jsonpath member accessor can only be applied to an object
 select json_path_query('{}', 'lax $.a');
  json_path_query 
 -----------------
@@ -252,10 +252,10 @@ ERROR:  SQL/JSON member not found
 DETAIL:  JSON object does not contain key "a"
 select json_path_query('1', 'strict $[1]');
 ERROR:  SQL/JSON array not found
-DETAIL:  jsonpath array accessor is applied to not an array
+DETAIL:  jsonpath array accessor can only be applied to an array
 select json_path_query('1', 'strict $[*]');
 ERROR:  SQL/JSON array not found
-DETAIL:  jsonpath wildcard array accessor is applied to not an array
+DETAIL:  jsonpath wildcard array accessor can only be applied to an array
 select json_path_query('[]', 'strict $[1]');
 ERROR:  invalid SQL/JSON subscript
 DETAIL:  jsonpath array subscript is out of bounds
@@ -372,7 +372,7 @@ select json_path_query('[1,2,3]', 'lax $[*]');
 
 select json_path_query('[1,2,3]', 'strict $[*].a');
 ERROR:  SQL/JSON member not found
-DETAIL:  jsonpath member accessor is applied to not an object
+DETAIL:  jsonpath member accessor can only be applied to an object
 select json_path_query('[]', '$[last]');
  json_path_query 
 -----------------
@@ -1216,7 +1216,7 @@ select json_path_query('[1, 2, 3]', 'strict ($[*].a > 3).type()');
 
 select json_path_query('[1,null,true,"11",[],[1],[1,2,3],{},{"a":1,"b":2}]', 'strict $[*].size()');
 ERROR:  SQL/JSON array not found
-DETAIL:  jsonpath item method .size() is applied to not an array
+DETAIL:  jsonpath item method .size() can only be applied to an array
 select json_path_query('[1,null,true,"11",[],[1],[1,2,3],{},{"a":1,"b":2}]', 'lax $[*].size()');
  json_path_query 
 -----------------
@@ -1283,7 +1283,7 @@ select json_path_query('[0, 1, -2, -3.4, 5.6]', '$[*].ceiling().abs().type()');
 
 select json_path_query('[{},1]', '$[*].keyvalue()');
 ERROR:  SQL/JSON object not found
-DETAIL:  jsonpath item method .keyvalue() is applied to not an object
+DETAIL:  jsonpath item method .keyvalue() can only be applied to an object
 select json_path_query('{}', '$.keyvalue()');
  json_path_query 
 -----------------
@@ -1307,7 +1307,7 @@ select json_path_query('[{"a": 1, "b": [1, 2]}, {"c": {"a": "bbb"}}]', '$[*].key
 
 select json_path_query('[{"a": 1, "b": [1, 2]}, {"c": {"a": "bbb"}}]', 'strict $.keyvalue()');
 ERROR:  SQL/JSON object not found
-DETAIL:  jsonpath item method .keyvalue() is applied to not an object
+DETAIL:  jsonpath item method .keyvalue() can only be applied to an object
 select json_path_query('[{"a": 1, "b": [1, 2]}, {"c": {"a": "bbb"}}]', 'lax $.keyvalue()');
                 json_path_query                
 -----------------------------------------------
@@ -1318,7 +1318,7 @@ select json_path_query('[{"a": 1, "b": [1, 2]}, {"c": {"a": "bbb"}}]', 'lax $.ke
 
 select json_path_query('[{"a": 1, "b": [1, 2]}, {"c": {"a": "bbb"}}]', 'strict $.keyvalue().a');
 ERROR:  SQL/JSON object not found
-DETAIL:  jsonpath item method .keyvalue() is applied to not an object
+DETAIL:  jsonpath item method .keyvalue() can only be applied to an object
 select json '{"a": 1, "b": [1, 2]}' @? 'lax $.keyvalue()';
  ?column? 
 ----------
@@ -1333,10 +1333,10 @@ select json '{"a": 1, "b": [1, 2]}' @? 'lax $.keyvalue().key';
 
 select json_path_query('null', '$.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to neither a string nor numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a string or numeric value
 select json_path_query('true', '$.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to neither a string nor numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a string or numeric value
 select json_path_query('[]', '$.double()');
  json_path_query 
 -----------------
@@ -1344,10 +1344,10 @@ select json_path_query('[]', '$.double()');
 
 select json_path_query('[]', 'strict $.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to neither a string nor numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a string or numeric value
 select json_path_query('{}', '$.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to neither a string nor numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a string or numeric value
 select json_path_query('1.23', '$.double()');
  json_path_query 
 -----------------
@@ -1362,7 +1362,7 @@ select json_path_query('"1.23"', '$.double()');
 
 select json_path_query('"1.23aaa"', '$.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to not a numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a numeric value
 select json_path_query('"nan"', '$.double()');
  json_path_query 
 -----------------
@@ -1377,19 +1377,19 @@ select json_path_query('"NaN"', '$.double()');
 
 select json_path_query('"inf"', '$.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to not a numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a numeric value
 select json_path_query('"-inf"', '$.double()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() is applied to not a numeric value
+DETAIL:  jsonpath item method .double() can only be applied to a numeric value
 select json_path_query('{}', '$.abs()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .abs() is applied to not a numeric value
+DETAIL:  jsonpath item method .abs() can only be applied to a numeric value
 select json_path_query('true', '$.floor()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .floor() is applied to not a numeric value
+DETAIL:  jsonpath item method .floor() can only be applied to a numeric value
 select json_path_query('"1.2"', '$.ceiling()');
 ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .ceiling() is applied to not a numeric value
+DETAIL:  jsonpath item method .ceiling() can only be applied to a numeric value
 select json_path_query('["", "a", "abc", "abcabc"]', '$[*] ? (@ starts with "abc")');
  json_path_query 
 -----------------
@@ -1867,63 +1867,56 @@ set time zone '+00';
 select json_path_query(
 	'["2017-03-10", "2017-03-11", "2017-03-09", "12:34:56", "01:02:03 +04", "2017-03-10 00:00:00", "2017-03-10 12:34:56", "2017-03-10 01:02:03 +04", "2017-03-10 03:00:00 +03"]',
 	'$[*].datetime() ? (@ == "10.03.2017".datetime("dd.mm.yyyy"))');
-       json_path_query       
------------------------------
+    json_path_query    
+-----------------------
  "2017-03-10"
  "2017-03-10T00:00:00"
- "2017-03-10T03:00:00+03:00"
-(3 rows)
+(2 rows)
 
 select json_path_query(
 	'["2017-03-10", "2017-03-11", "2017-03-09", "12:34:56", "01:02:03 +04", "2017-03-10 00:00:00", "2017-03-10 12:34:56", "2017-03-10 01:02:03 +04", "2017-03-10 03:00:00 +03"]',
 	'$[*].datetime() ? (@ >= "10.03.2017".datetime("dd.mm.yyyy"))');
-       json_path_query       
------------------------------
+    json_path_query    
+-----------------------
  "2017-03-10"
  "2017-03-11"
  "2017-03-10T00:00:00"
  "2017-03-10T12:34:56"
- "2017-03-10T03:00:00+03:00"
-(5 rows)
+(4 rows)
 
 select json_path_query(
 	'["2017-03-10", "2017-03-11", "2017-03-09", "12:34:56", "01:02:03 +04", "2017-03-10 00:00:00", "2017-03-10 12:34:56", "2017-03-10 01:02:03 +04", "2017-03-10 03:00:00 +03"]',
 	'$[*].datetime() ? (@ <  "10.03.2017".datetime("dd.mm.yyyy"))');
-       json_path_query       
------------------------------
+ json_path_query 
+-----------------
  "2017-03-09"
- "2017-03-10T01:02:03+04:00"
-(2 rows)
+(1 row)
 
 -- time comparison
 select json_path_query(
 	'["12:34:00", "12:35:00", "12:36:00", "12:35:00 +00", "12:35:00 +01", "13:35:00 +01", "2017-03-10", "2017-03-10 12:35:00", "2017-03-10 12:35:00 +01"]',
 	'$[*].datetime() ? (@ == "12:35".datetime("HH24:MI"))');
- json_path_query  
-------------------
+ json_path_query 
+-----------------
  "12:35:00"
- "12:35:00+00:00"
-(2 rows)
+(1 row)
 
 select json_path_query(
 	'["12:34:00", "12:35:00", "12:36:00", "12:35:00 +00", "12:35:00 +01", "13:35:00 +01", "2017-03-10", "2017-03-10 12:35:00", "2017-03-10 12:35:00 +01"]',
 	'$[*].datetime() ? (@ >= "12:35".datetime("HH24:MI"))');
- json_path_query  
-------------------
+ json_path_query 
+-----------------
  "12:35:00"
  "12:36:00"
- "12:35:00+00:00"
-(3 rows)
+(2 rows)
 
 select json_path_query(
 	'["12:34:00", "12:35:00", "12:36:00", "12:35:00 +00", "12:35:00 +01", "13:35:00 +01", "2017-03-10", "2017-03-10 12:35:00", "2017-03-10 12:35:00 +01"]',
 	'$[*].datetime() ? (@ <  "12:35".datetime("HH24:MI"))');
- json_path_query  
-------------------
+ json_path_query 
+-----------------
  "12:34:00"
- "12:35:00+01:00"
- "13:35:00+01:00"
-(3 rows)
+(1 row)
 
 -- timetz comparison
 select json_path_query(
@@ -1942,9 +1935,7 @@ select json_path_query(
  "12:35:00+01:00"
  "12:36:00+01:00"
  "12:35:00-02:00"
- "11:35:00"
- "12:35:00"
-(5 rows)
+(3 rows)
 
 select json_path_query(
 	'["12:34:00 +01", "12:35:00 +01", "12:36:00 +01", "12:35:00 +02", "12:35:00 -02", "10:35:00", "11:35:00", "12:35:00", "2017-03-10", "2017-03-10 12:35:00", "2017-03-10 12:35:00 +1"]',
@@ -1953,40 +1944,35 @@ select json_path_query(
 ------------------
  "12:34:00+01:00"
  "12:35:00+02:00"
- "10:35:00"
-(3 rows)
+(2 rows)
 
 -- timestamp comparison
 select json_path_query(
 	'["2017-03-10 12:34:00", "2017-03-10 12:35:00", "2017-03-10 12:36:00", "2017-03-10 12:35:00 +01", "2017-03-10 13:35:00 +01", "2017-03-10 12:35:00 -01", "2017-03-10", "2017-03-11", "12:34:56", "12:34:56 +01"]',
 	'$[*].datetime() ? (@ == "10.03.2017 12:35".datetime("dd.mm.yyyy HH24:MI"))');
-       json_path_query       
------------------------------
+    json_path_query    
+-----------------------
  "2017-03-10T12:35:00"
- "2017-03-10T13:35:00+01:00"
-(2 rows)
+(1 row)
 
 select json_path_query(
 	'["2017-03-10 12:34:00", "2017-03-10 12:35:00", "2017-03-10 12:36:00", "2017-03-10 12:35:00 +01", "2017-03-10 13:35:00 +01", "2017-03-10 12:35:00 -01", "2017-03-10", "2017-03-11", "12:34:56", "12:34:56 +01"]',
 	'$[*].datetime() ? (@ >= "10.03.2017 12:35".datetime("dd.mm.yyyy HH24:MI"))');
-       json_path_query       
------------------------------
+    json_path_query    
+-----------------------
  "2017-03-10T12:35:00"
  "2017-03-10T12:36:00"
- "2017-03-10T13:35:00+01:00"
- "2017-03-10T12:35:00-01:00"
  "2017-03-11"
-(5 rows)
+(3 rows)
 
 select json_path_query(
 	'["2017-03-10 12:34:00", "2017-03-10 12:35:00", "2017-03-10 12:36:00", "2017-03-10 12:35:00 +01", "2017-03-10 13:35:00 +01", "2017-03-10 12:35:00 -01", "2017-03-10", "2017-03-11", "12:34:56", "12:34:56 +01"]',
 	'$[*].datetime() ? (@ < "10.03.2017 12:35".datetime("dd.mm.yyyy HH24:MI"))');
-       json_path_query       
------------------------------
+    json_path_query    
+-----------------------
  "2017-03-10T12:34:00"
- "2017-03-10T12:35:00+01:00"
  "2017-03-10"
-(3 rows)
+(2 rows)
 
 -- timestamptz comparison
 select json_path_query(
@@ -1995,8 +1981,7 @@ select json_path_query(
        json_path_query       
 -----------------------------
  "2017-03-10T12:35:00+01:00"
- "2017-03-10T11:35:00"
-(2 rows)
+(1 row)
 
 select json_path_query(
 	'["2017-03-10 12:34:00 +01", "2017-03-10 12:35:00 +01", "2017-03-10 12:36:00 +01", "2017-03-10 12:35:00 +02", "2017-03-10 12:35:00 -02", "2017-03-10 10:35:00", "2017-03-10 11:35:00", "2017-03-10 12:35:00", "2017-03-10", "2017-03-11", "12:34:56", "12:34:56 +01"]',
@@ -2006,10 +1991,7 @@ select json_path_query(
  "2017-03-10T12:35:00+01:00"
  "2017-03-10T12:36:00+01:00"
  "2017-03-10T12:35:00-02:00"
- "2017-03-10T11:35:00"
- "2017-03-10T12:35:00"
- "2017-03-11"
-(6 rows)
+(3 rows)
 
 select json_path_query(
 	'["2017-03-10 12:34:00 +01", "2017-03-10 12:35:00 +01", "2017-03-10 12:36:00 +01", "2017-03-10 12:35:00 +02", "2017-03-10 12:35:00 -02", "2017-03-10 10:35:00", "2017-03-10 11:35:00", "2017-03-10 12:35:00", "2017-03-10", "2017-03-11", "12:34:56", "12:34:56 +01"]',
@@ -2018,9 +2000,7 @@ select json_path_query(
 -----------------------------
  "2017-03-10T12:34:00+01:00"
  "2017-03-10T12:35:00+02:00"
- "2017-03-10T10:35:00"
- "2017-03-10"
-(4 rows)
+(2 rows)
 
 set time zone default;
 -- jsonpath operators
