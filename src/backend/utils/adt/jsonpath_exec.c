@@ -1087,6 +1087,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				int32		typmod = -1;
 				int			tz = PG_INT32_MIN;
 				bool		hasNext;
+				char	   *tzname = NULL;
 
 				if (unwrap && JsonbType(jb) == jbvArray)
 					return executeItemUnwrapTargetArray(cxt, jsp, jb, found,
@@ -1108,7 +1109,6 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					text	   *template;
 					char	   *template_str;
 					int			template_len;
-					char	   *tzname = NULL;
 
 					jspGetLeftArg(jsp, &elem);
 
@@ -1163,20 +1163,21 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 						}
 					}
 
-					template = cstring_to_text_with_len(template_str,
-														template_len);
+					if (template_len)
+					{
+						template = cstring_to_text_with_len(template_str,
+															template_len);
 
-					if (tryToParseDatetime(template, datetime, tzname, false,
-										   &value, &typid, &typmod,
-										   &tz, jspThrowErrors(cxt)))
-						res = jperOk;
-					else
-						res = jperError;
-
-					if (tzname)
-						pfree(tzname);
+						if (tryToParseDatetime(template, datetime, tzname, false,
+											   &value, &typid, &typmod,
+											   &tz, jspThrowErrors(cxt)))
+							res = jperOk;
+						else
+							res = jperError;
+					}
 				}
-				else
+
+				if (res == jperNotFound)
 				{
 					/* Try to recognize one of ISO formats. */
 					static const char *fmt_str[] =
@@ -1205,7 +1206,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 							MemoryContextSwitchTo(oldcxt);
 						}
 
-						if (tryToParseDatetime(fmt_txt[i], datetime, NULL,
+						if (tryToParseDatetime(fmt_txt[i], datetime, tzname,
 											   true, &value, &typid, &typmod,
 											   &tz, false))
 						{
@@ -1223,6 +1224,9 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 													  "argument for explicit "
 													  "format specification"))));
 				}
+
+				if (tzname)
+					pfree(tzname);
 
 				pfree(datetime);
 
@@ -2520,18 +2524,6 @@ wrapItemsInArray(const JsonValueList *items)
 	return pushJsonbValue(&ps, WJB_END_ARRAY, NULL);
 }
 
-#define USE_CURRENT_TZ
-
-static int
-get_current_tz()
-{
-	struct pg_tm tm;
-
-	GetCurrentDateTime(&tm);
-
-	return DetermineTimeZoneOffset(&tm, session_timezone);
-}
-
 static inline Datum
 time_to_timetz(Datum time, int tz, bool *error)
 {
@@ -2540,12 +2532,8 @@ time_to_timetz(Datum time, int tz, bool *error)
 
 	if (tz == PG_INT32_MIN)
 	{
-#ifdef USE_CURRENT_TZ
-		tz = get_current_tz();
-#else
 		*error = true;
 		return (Datum) 0;
-#endif
 	}
 
 	result->time = tm;
@@ -2571,12 +2559,8 @@ date_to_timestamptz(Datum date, int tz, bool *error)
 
 	if (tz == PG_INT32_MIN)
 	{
-#ifdef USE_CURRENT_TZ
-		tz = get_current_tz();
-#else
 		*error = true;
 		return (Datum) 0;
-#endif
 	}
 
 	ts = date2timestamptz_internal(dt, &tz, error);
@@ -2592,12 +2576,8 @@ timestamp_to_timestamptz(Datum val, int tz, bool *error)
 
 	if (tz == PG_INT32_MIN)
 	{
-#ifdef USE_CURRENT_TZ
-		tz = get_current_tz();
-#else
 		*error = true;
 		return (Datum) 0;
-#endif
 	}
 
 	tstz = timestamp2timestamptz_internal(ts, &tz, error);
@@ -2774,35 +2754,8 @@ tryToParseDatetime(text *fmt, text *datetime, char *tzname, bool strict,
 	bool		error = false;
 	int			tz = *tzp;
 
-#if 0
-	if (throwErrors)
-	{
-		PG_TRY();
-		{
-			*value = parse_datetime(datetime, fmt, tzname, strict, typid,
-									typmod, &tz, throwErrors ? NULL : &error);
-		}
-		PG_CATCH();
-		{
-			if (/* ERRCODE_TO_CATEGORY(geterrcode()) == ERRCODE_DATA_EXCEPTION */
-				geterrcode() == ERRCODE_INVALID_DATETIME_FORMAT ||
-				geterrcode() == ERRCODE_DATETIME_VALUE_OUT_OF_RANGE)
-			{
-				/*
-				 * Save original datetime error message, details and hint, just
-				 * replace errcode with a SQL/JSON one.
-				 */
-				errcode(ERRCODE_INVALID_ARGUMENT_FOR_JSON_DATETIME_FUNCTION);
-			}
-			PG_RE_THROW();
-		}
-		PG_END_TRY();
-	}
-	else
-#endif
-
-		*value = parse_datetime(datetime, fmt, tzname, strict, typid, typmod,
-								&tz, throwErrors ? NULL : &error);
+	*value = parse_datetime(datetime, fmt, tzname, strict, typid, typmod,
+							&tz, throwErrors ? NULL : &error);
 
 	if (!error)
 		*tzp = tz;
