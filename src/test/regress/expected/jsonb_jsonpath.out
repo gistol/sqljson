@@ -1579,20 +1579,16 @@ select jsonb_path_query('"NaN"', '$.double()');
 (1 row)
 
 select jsonb_path_query('"inf"', '$.double()');
-ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() can only be applied to a numeric value
-select jsonb_path_query('"-inf"', '$.double()');
-ERROR:  non-numeric SQL/JSON item
-DETAIL:  jsonpath item method .double() can only be applied to a numeric value
-select jsonb_path_query('"inf"', '$.double()', silent => true);
  jsonb_path_query 
 ------------------
-(0 rows)
+ "Infinity"
+(1 row)
 
-select jsonb_path_query('"-inf"', '$.double()', silent => true);
+select jsonb_path_query('"-inf"', '$.double()');
  jsonb_path_query 
 ------------------
-(0 rows)
+ "-Infinity"
+(1 row)
 
 select jsonb_path_query('{}', '$.abs()');
 ERROR:  non-numeric SQL/JSON item
