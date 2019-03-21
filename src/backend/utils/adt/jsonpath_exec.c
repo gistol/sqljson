@@ -621,7 +621,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					escape_json(&keybuf, keystr);
 
 					ereport(ERROR,
-							(errcode(ERRCODE_JSON_MEMBER_NOT_FOUND), \
+							(errcode(ERRCODE_JSON_MEMBER_NOT_FOUND),
 							 errmsg(ERRMSG_JSON_MEMBER_NOT_FOUND),
 							 errdetail("JSON object does not contain key %s",
 									   keybuf.data)));
