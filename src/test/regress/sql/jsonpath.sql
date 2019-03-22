@@ -150,6 +150,8 @@ select '$ ? (@.a < +10.1e+1)'::jsonpath;
 
 select '0'::jsonpath;
 select '00'::jsonpath;
+select '$.00'::jsonpath;
+select '$.0a'::jsonpath;
 select '0.0'::jsonpath;
 select '0.000'::jsonpath;
 select '0.000e1'::jsonpath;
